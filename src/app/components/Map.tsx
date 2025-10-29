@@ -6,7 +6,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { useSelectionStore } from "../store/useSelectionStore";
 import { mockEvents } from "../data";
 import EventDetailsModal from "./events/EventDetailsModal";
-import BuildingInfo from "./buildings/BuildingInfo"; // ✅ make sure you created this component!
+import BuildingInfo from "./buildings/BuildingInfo"; // make sure you created this component!
 
 const INITIAL_CENTER: [number, number] = [-119.74784, 36.81226];
 const INITIAL_ZOOM = 15;
@@ -14,15 +14,14 @@ const INITIAL_ZOOM = 15;
 export default function Map() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markerRefs = useRef<mapboxgl.Marker[]>([]); // for red event markers
+  const markerRefs = useRef<mapboxgl.Marker[]>([]);
   const selectedMarkerRef = useRef<mapboxgl.Marker | null>(null); // for blue selected marker
 
   const [showModal, setShowModal] = useState(false);
-  const [selectedBuilding, setSelectedBuilding] = useState<any>(null); // ✅ moved inside component
+  const [selectedBuilding, setSelectedBuilding] = useState<any>(null);
 
   const { selectedEvent, setSelectedEvent } = useSelectionStore();
 
-  // ✅ INITIALIZE MAP + LOAD EVENTS + LOAD BUILDINGS
   useEffect(() => {
     mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -34,7 +33,7 @@ export default function Map() {
       style: "mapbox://styles/mapbox/streets-v11",
     });
 
-    // ✅ Load event markers and buildings when map loads
+    // Load event markers and buildings when map loads
     mapRef.current.on("load", async () => {
       // --- Add event markers ---
       markerRefs.current = mockEvents
@@ -117,7 +116,7 @@ export default function Map() {
       });
     });
 
-    // ✅ Hide/Show pins based on zoom level
+    // Hide/Show pins based on zoom level
     mapRef.current.on("zoom", () => {
       const currentZoom = mapRef.current!.getZoom();
 
@@ -144,13 +143,13 @@ export default function Map() {
       }
     });
 
-    // ✅ Cleanup
+    // Cleanup
     return () => {
       mapRef.current?.remove();
     };
   }, [setSelectedEvent]);
 
-  // ✅ Fly to selected event from sidebar
+  // Fly to selected event from sidebar
   useEffect(() => {
     if (selectedEvent && mapRef.current) {
       const { lat, lng, name, location } = selectedEvent;

@@ -4,7 +4,7 @@ import { useSelectionStore } from "../../store/useSelectionStore";
 import { useUser } from "../../context/UserContext";
 
 export default function EventList() {
-  const { role } = useUser(); // ✅ ensure role is defined here
+  const { role } = useUser(); // ensure role is defined here
   const { setSelectedEvent } = useSelectionStore();
 
   return (

@@ -9,7 +9,7 @@ export default function BuildingInfo({
 }) {
   if (!building) return null;
 
-  // ✅ Get the building name from the first key in properties
+  // Get the building name from the first key in properties
   const propertyKeys = Object.keys(building);
   const name =
     propertyKeys.length > 0

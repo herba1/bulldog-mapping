@@ -7,7 +7,7 @@ export default function EventDetailsModal({ event, onClose }: { event: any; onCl
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-      // 👆 makes background semi-transparent and shows blurred map
+      //  makes background semi-transparent and shows blurred map
     >
       <div
         className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg relative border border-gray-200"
