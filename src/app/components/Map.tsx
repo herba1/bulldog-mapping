@@ -5,7 +5,8 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useSelectionStore } from "../store/useSelectionStore";
 import { mockEvents } from "../data";
-import EventDetailsModal from "./events/EventDetailsModal"; // ✅ import modal
+import EventDetailsModal from "./events/EventDetailsModal";
+import BuildingInfo from "./buildings/BuildingInfo"; // ✅ make sure you created this component!
 
 const INITIAL_CENTER: [number, number] = [-119.74784, 36.81226];
 const INITIAL_ZOOM = 15;
@@ -13,14 +14,15 @@ const INITIAL_ZOOM = 15;
 export default function Map() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const markerRefs = useRef<mapboxgl.Marker[]>([]); // for red event markers
+  const selectedMarkerRef = useRef<mapboxgl.Marker | null>(null); // for blue selected marker
 
-  const [center, setCenter] = useState<[number, number]>(INITIAL_CENTER);
-  const [zoom, setZoom] = useState<number>(INITIAL_ZOOM);
-  const [showModal, setShowModal] = useState(false); // ✅ track modal visibility
+  const [showModal, setShowModal] = useState(false);
+  const [selectedBuilding, setSelectedBuilding] = useState<any>(null); // ✅ moved inside component
 
   const { selectedEvent, setSelectedEvent } = useSelectionStore();
 
+  // ✅ INITIALIZE MAP + LOAD EVENTS + LOAD BUILDINGS
   useEffect(() => {
     mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -32,59 +34,126 @@ export default function Map() {
       style: "mapbox://styles/mapbox/streets-v11",
     });
 
-    // ✅ Add all event markers
-    mapRef.current.on("load", () => {
-      mockEvents.forEach((event: any) => {
-        const hasValidCoords =
-          typeof event.lng === "number" &&
-          typeof event.lat === "number" &&
-          !isNaN(event.lng) &&
-          !isNaN(event.lat);
+    // ✅ Load event markers and buildings when map loads
+    mapRef.current.on("load", async () => {
+      // --- Add event markers ---
+      markerRefs.current = mockEvents
+        .map((event) => {
+          const hasValidCoords =
+            typeof event.lng === "number" &&
+            typeof event.lat === "number" &&
+            !isNaN(event.lng) &&
+            !isNaN(event.lat);
 
-        if (!hasValidCoords) {
-          console.warn("⚠️ Skipping event with invalid coordinates:", event);
-          return;
-        }
+          if (!hasValidCoords) return null;
 
-        // ✅ Popup for each marker
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          `<strong>${event.name}</strong><br>${event.location}`
-        );
+          const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
+            `<div style="color:#000;font-weight:500;">
+               <strong>${event.name}</strong><br>${event.location}
+             </div>`
+          );
 
-        // ✅ Marker for each event
-        const marker = new mapboxgl.Marker({ color: "#e11d48" })
-          .setLngLat([event.lng, event.lat])
-          .setPopup(popup)
-          .addTo(mapRef.current!);
+          const marker = new mapboxgl.Marker({ color: "#e11d48" })
+            .setLngLat([event.lng, event.lat])
+            .setPopup(popup)
+            .addTo(mapRef.current!);
 
-        // ✅ Click on marker opens modal with details
-        marker.getElement().addEventListener("click", () => {
-          setSelectedEvent(event);
-          setShowModal(true);
+          marker.getElement().addEventListener("click", () => {
+            setSelectedEvent(event);
+            setShowModal(true);
+          });
+
+          return marker;
+        })
+        .filter(Boolean) as mapboxgl.Marker[];
+
+      // --- Load campus building outlines ---
+      const response = await fetch("/map.geojson");
+      const geojson = await response.json();
+
+      if (!mapRef.current!.getSource("buildings")) {
+        mapRef.current!.addSource("buildings", {
+          type: "geojson",
+          data: geojson,
         });
+      }
+
+      // Fill color for buildings
+      mapRef.current!.addLayer({
+        id: "building-fills",
+        type: "fill",
+        source: "buildings",
+        paint: {
+          "fill-color": "#1d4ed8", // Fresno State blue
+          "fill-opacity": 0.3,
+        },
+      });
+
+      // Border for buildings
+      mapRef.current!.addLayer({
+        id: "building-borders",
+        type: "line",
+        source: "buildings",
+        paint: {
+          "line-color": "#1e3a8a",
+          "line-width": 1.5,
+        },
+      });
+
+      // Click handler for buildings
+      mapRef.current!.on("click", "building-fills", (e: any) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+        const properties = feature.properties || {};
+        setSelectedBuilding(properties);
+      });
+
+      // Hover effects for buildings
+      mapRef.current!.on("mouseenter", "building-fills", () => {
+        mapRef.current!.getCanvas().style.cursor = "pointer";
+      });
+      mapRef.current!.on("mouseleave", "building-fills", () => {
+        mapRef.current!.getCanvas().style.cursor = "";
       });
     });
 
-    // Track map position
-    mapRef.current.on("move", () => {
-      if (mapRef.current) {
-        const mapCenter = mapRef.current.getCenter();
-        const mapZoom = mapRef.current.getZoom();
-        setCenter([mapCenter.lng, mapCenter.lat]);
-        setZoom(mapZoom);
+    // ✅ Hide/Show pins based on zoom level
+    mapRef.current.on("zoom", () => {
+      const currentZoom = mapRef.current!.getZoom();
+
+      if (currentZoom >= 14) {
+        markerRefs.current.forEach(
+          (marker) => (marker.getElement().style.display = "block")
+        );
+        if (selectedMarkerRef.current) {
+          selectedMarkerRef.current.getElement().style.display = "block";
+        }
+      } else {
+        markerRefs.current.forEach(
+          (marker) => (marker.getElement().style.display = "none")
+        );
+        if (selectedMarkerRef.current) {
+          selectedMarkerRef.current.getElement().style.display = "none";
+        }
+      }
+
+      // Fully remove selected marker when zoomed too far out
+      if (currentZoom < 10 && selectedMarkerRef.current) {
+        selectedMarkerRef.current.remove();
+        selectedMarkerRef.current = null;
       }
     });
 
+    // ✅ Cleanup
     return () => {
-      if (mapRef.current) mapRef.current.remove();
+      mapRef.current?.remove();
     };
   }, [setSelectedEvent]);
 
-  // ✅ Fly to selected event (when triggered from Event List)
+  // ✅ Fly to selected event from sidebar
   useEffect(() => {
     if (selectedEvent && mapRef.current) {
       const { lat, lng, name, location } = selectedEvent;
-
       if (typeof lat !== "number" || typeof lng !== "number") return;
 
       mapRef.current.flyTo({
@@ -93,26 +162,29 @@ export default function Map() {
         essential: true,
       });
 
-      if (markerRef.current) {
-        markerRef.current.remove();
-      }
-
       const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-        `<strong>${name}</strong><br>${location}`
+        `<div style="color:#000;font-weight:500;">
+           <strong>${name}</strong><br>${location}
+         </div>`
       );
 
-      markerRef.current = new mapboxgl.Marker({ color: "#2563eb" })
+      // Remove existing selected marker if any
+      if (selectedMarkerRef.current) {
+        selectedMarkerRef.current.remove();
+      }
+
+      // Create new blue marker
+      selectedMarkerRef.current = new mapboxgl.Marker({ color: "#2563eb" })
         .setLngLat([lng, lat])
         .setPopup(popup)
         .addTo(mapRef.current);
 
-      popup.addTo(mapRef.current);
+      selectedMarkerRef.current.togglePopup();
     }
   }, [selectedEvent]);
 
   return (
     <>
-
       {/* Map container */}
       <div
         ref={mapContainerRef}
@@ -120,11 +192,19 @@ export default function Map() {
         className="absolute top-0 left-0 right-0 bottom-0 w-full h-full bg-neutral-200"
       ></div>
 
-      {/* ✅ Show event details modal when marker is clicked */}
+      {/* Event Details Modal */}
       {showModal && selectedEvent && (
         <EventDetailsModal
           event={selectedEvent}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* Building Info Sidebar */}
+      {selectedBuilding && (
+        <BuildingInfo
+          building={selectedBuilding}
+          onClose={() => setSelectedBuilding(null)}
         />
       )}
     </>
