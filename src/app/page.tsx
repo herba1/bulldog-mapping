@@ -1,5 +1,5 @@
 import { getBuildings, getEvents } from "@/data";
-import Map from "./components/Map";
+import Map2 from "./components/Map2";
 
 export default async function Home() {
   const buildingData = getBuildings();
@@ -10,7 +10,7 @@ export default async function Home() {
 
   return (
     <div className="h-lvh relative w-full">
-      <Map></Map>
+      <Map2 events={events}></Map2>
     </div>
   );
 }
