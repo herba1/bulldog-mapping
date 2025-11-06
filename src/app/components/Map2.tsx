@@ -7,18 +7,21 @@ import "mapbox-gl/dist/mapbox-gl.css";
 
 const INTITIAL_CENTER: [number, number] = [-119.74784, 36.81226];
 const INITIAL_ZOOM = 15;
+const DETAIL_ZOOM_THRESHOLD = 18; // Zoom level below which markers become simple dots
 
 // Define the prop types
 interface Map2Props {
   events: any[]; // Replace 'any[]' with your actual event type
 }
 
-// Custom marker component
+// Custom React component for the marker
 interface EventMarkerProps {
   event: any;
   onClick: () => void;
+  isSimple: boolean;
 }
 
+// Helper function to calculate time until start
 function getTimeUntilStart(dateStart: string | Date) {
   const now = new Date();
   const start = new Date(dateStart);
@@ -69,7 +72,7 @@ function getTimeUntilStart(dateStart: string | Date) {
   };
 }
 
-function EventMarker({ event, onClick }: EventMarkerProps) {
+function EventMarker({ event, onClick, isSimple }: EventMarkerProps) {
   const [timeUntil, setTimeUntil] = useState(() => 
     event.dateStart ? getTimeUntilStart(event.dateStart) : null
   );
@@ -85,18 +88,38 @@ function EventMarker({ event, onClick }: EventMarkerProps) {
     return () => clearInterval(interval);
   }, [event.dateStart]);
 
+  // Simple dot marker for zoomed out view
+  if (isSimple) {
+    return (
+      <div
+        onClick={onClick}
+        className={`w-4 h-4 rounded-full cursor-pointer shadow-md transition-transform hover:scale-125 ${
+          timeUntil?.urgent ? 'bg-red-500' : 'bg-blue-500'
+        }`}
+        style={{
+          border: '2px solid white',
+        }}
+      />
+    );
+  }
+
+  // Detailed marker for zoomed in view
   return (
     <div
       onClick={onClick}
-      className={`bg-white border-2 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition-all min-w-[200px] max-w-[250px] ${
+      className={`bg-white border-2 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition-shadow ${
         timeUntil?.urgent ? 'border-red-500' : 'border-blue-500'
       }`}
+      style={{
+        width: '200px', // Fixed width
+        maxWidth: '200px',
+      }}
     >
       {/* Header with event name and countdown */}
       <div className={`px-3 py-2 rounded-t-lg ${
         timeUntil?.urgent ? 'bg-red-500' : 'bg-blue-500'
       } text-white`}>
-        <div className="font-semibold text-sm">{event.name || 'Event'}</div>
+        <div className="font-semibold text-sm truncate">{event.name || 'Event'}</div>
         {timeUntil && (
           <div className="text-xs opacity-90 mt-0.5">
             {timeUntil.text === 'Started' ? '🔴 Started' : `⏱️ in ${timeUntil.text}`}
@@ -110,7 +133,7 @@ function EventMarker({ event, onClick }: EventMarkerProps) {
         {event.dateStart && (
           <div className="flex items-center gap-2 text-xs">
             <span className="text-gray-500 font-medium">Starts:</span>
-            <span className={timeUntil?.color || 'text-gray-700'}>
+            <span className={`${timeUntil?.color || 'text-gray-700'} truncate`}>
               {new Date(event.dateStart).toLocaleString('en-US', { 
                 month: 'short', 
                 day: 'numeric',
@@ -125,7 +148,9 @@ function EventMarker({ event, onClick }: EventMarkerProps) {
         {event.datePosted && (
           <div className="flex items-center gap-2 text-xs">
             <span className="text-gray-500 font-medium">Posted:</span>
-            <span className="text-gray-400">{new Date(event.datePosted).toLocaleDateString()}</span>
+            <span className="text-gray-400 truncate">
+              {new Date(event.datePosted).toLocaleDateString()}
+            </span>
           </div>
         )}
         
@@ -144,22 +169,33 @@ function EventMarker({ event, onClick }: EventMarkerProps) {
 export default function Map2({ events }: Map2Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<Array<{ marker: mapboxgl.Marker; root: any }>>([]);
+  const markersRef = useRef<{ marker: mapboxgl.Marker; root: any }[]>([]);
 
   const [center, setCenter] = useState<[number, number]>(INTITIAL_CENTER);
   const [zoom, setZoom] = useState<number>(INITIAL_ZOOM);
+  const [isSimpleView, setIsSimpleView] = useState<boolean>(false);
 
-  // Handle event click
+  // Handle marker click
   const handleEventClick = (event: any) => {
-    console.log('Clicked event:', event);
-    // Add your custom logic here (e.g., show modal, navigate, etc.)
+    console.log("Event clicked:", event);
+    
+    // Zoom to event location if in simple view
+    if (isSimpleView && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [event.longitude, event.latitude],
+        zoom: DETAIL_ZOOM_THRESHOLD + 1,
+        duration: 1000
+      });
+    }
   };
 
   // Initialize map
   useEffect(() => {
-    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
+    if (!mapContainerRef.current) return;
+
+    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
     mapRef.current = new mapboxgl.Map({
-      container: mapContainerRef.current!,
+      container: mapContainerRef.current,
       center: INTITIAL_CENTER,
       zoom: INITIAL_ZOOM,
     });
@@ -170,6 +206,9 @@ export default function Map2({ events }: Map2Props) {
         const mapZoom = mapRef.current.getZoom();
         setCenter([mapCenter.lng, mapCenter.lat]);
         setZoom(mapZoom);
+        
+        // Update simple view state based on zoom
+        setIsSimpleView(mapZoom < DETAIL_ZOOM_THRESHOLD);
       }
     });
 
@@ -187,11 +226,11 @@ export default function Map2({ events }: Map2Props) {
     };
   }, []);
 
-  // Add/update markers when events change
+  // Add/update markers when events or view mode changes
   useEffect(() => {
     if (!mapRef.current || !events) return;
 
-    // Clean up existing markers
+    // Clear existing markers
     markersRef.current.forEach(({ marker, root }) => {
       root.unmount();
       marker.remove();
@@ -200,18 +239,17 @@ export default function Map2({ events }: Map2Props) {
 
     // Add new markers
     events.forEach((event) => {
-      // Ensure event has coordinates
-      if (!event.longitude || !event.latitude) {
-        console.warn('Event missing coordinates:', event);
-        return;
-      }
+      // Create a div element for the marker
+      const el = document.createElement("div");
+      el.className = "custom-marker";
+      // Prevent map panning when clicking marker
+      el.style.pointerEvents = 'auto';
 
-      // Create a DOM element for the marker
-      const el = document.createElement('div');
-      el.className = 'custom-marker';
-
-      // Create marker
-      const marker = new mapboxgl.Marker(el)
+      // Create marker with no offset for simple view, offset for detailed view
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: isSimpleView ? 'center' : 'top'
+      })
         .setLngLat([event.longitude, event.latitude])
         .addTo(mapRef.current!);
 
@@ -220,7 +258,8 @@ export default function Map2({ events }: Map2Props) {
       root.render(
         <EventMarker 
           event={event} 
-          onClick={() => handleEventClick(event)} 
+          onClick={() => handleEventClick(event)}
+          isSimple={isSimpleView}
         />
       );
 
@@ -228,7 +267,7 @@ export default function Map2({ events }: Map2Props) {
       markersRef.current.push({ marker, root });
     });
 
-    // Cleanup function for this effect
+    // Cleanup function
     return () => {
       markersRef.current.forEach(({ marker, root }) => {
         root.unmount();
@@ -236,14 +275,14 @@ export default function Map2({ events }: Map2Props) {
       });
       markersRef.current = [];
     };
-  }, [events]);
+  }, [events, isSimpleView]);
 
   return (
     <>
-      {/* <div className="absolute top-4 left-4 bg-white p-4 w-xs rounded-lg inset-shadow-2xs shadow-sm border-1 border-neutral-300 z-10">
-        <div>Longitude: {center[0].toFixed(5)}</div>
-        <div>Latitude: {center[1].toFixed(5)}</div>
+      {/* Optional: Show zoom level indicator */}
+      {/* <div className="absolute top-4 left-4 bg-white p-4 rounded-lg shadow-sm border border-neutral-300 z-10">
         <div>Zoom: {zoom.toFixed(2)}</div>
+        <div>View: {isSimpleView ? 'Simple' : 'Detailed'}</div>
       </div> */}
       <div
         ref={mapContainerRef}
