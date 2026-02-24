@@ -3,6 +3,11 @@ import {
   getBuildings,
   getEvents,
   getUserAdminStatus,
+  getParkingLots,
+  getParkingPolygons,
+  getActiveConstructionZones,
+  getAllConstructionZones,
+  getSavedRoutes,
 } from "@/data";
 import Map from "./components/Map";
 import { MapProvider } from "@/context/MapContext";
@@ -21,18 +26,33 @@ export default async function Home() {
   const buildingData = getBuildings();
   const eventData = getEvents();
   const buildingPolygonData = getBuildingPolygons();
+  const parkingData = getParkingLots();
+  const parkingPolygonData = getParkingPolygons();
+  // Load all zones for admins, active zones for everyone else
+  const constructionZoneData = adminStatus
+    ? getAllConstructionZones()
+    : getActiveConstructionZones();
+  const savedRoutesData = getSavedRoutes();
   const [
     buildings,
     events,
     buildingPolygons,
+    parkingLots,
+    parkingPolygons,
+    constructionZones,
     {
       data: { user },
     },
+    savedRoutes,
   ] = await Promise.all([
     buildingData,
     eventData,
     buildingPolygonData,
+    parkingData,
+    parkingPolygonData,
+    constructionZoneData,
     userData,
+    savedRoutesData,
   ]);
   return (
     <div className="max-h-dvh h-dvh relative w-full">
@@ -40,6 +60,9 @@ export default async function Home() {
         buildings={buildings}
         events={events}
         buildingPolygons={buildingPolygons}
+        parkingLots={parkingLots}
+        parkingPolygons={parkingPolygons}
+        constructionZones={constructionZones}
       >
         <SidebarProvider>
           <Navbar user={user} isAdmin={adminStatus}></Navbar>
@@ -47,7 +70,7 @@ export default async function Home() {
             <div className="absolute z-0 animate-loader-in pointer-events-none w-10 right-0 bottom-0 m-4 aspect-square ">
               <Loader className="w-full h-full text-neutral-500 m-2 animate-loader-spin" />
             </div>
-            <Sidebar user={user} isAdmin={adminStatus}></Sidebar>
+            <Sidebar user={user} isAdmin={adminStatus} savedRoutes={savedRoutes}></Sidebar>
             <MapTest></MapTest>
           </main>
         </SidebarProvider>

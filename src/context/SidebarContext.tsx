@@ -1,7 +1,7 @@
 'use client'
 import React, { createContext, useContext, useState } from "react"
 
-type SidebarView = "search" | "building" | "event" | "filters" | null | "eventCreator" | "eventList";
+type SidebarView = "search" | "building" | "event" | "filters" | null | "eventCreator" | "eventList" | "schedule" | "constructionZones" | "chatbot";
 
 type SidebarContextType = {
   view: SidebarView;

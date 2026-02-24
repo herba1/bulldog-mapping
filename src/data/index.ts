@@ -32,6 +32,47 @@ export async function getEvents() {
   return data;
 }
 
+export async function getParkingLots() {
+  const supabase = await createClient();
+
+  // Query buildings where name contains "Parking"
+  const { data, error } = await supabase
+    .from("building")
+    .select("*")
+    .ilike("name", "%parking%");
+
+  if (error) {
+    console.warn("Error fetching parking lots:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function getParkingPolygons() {
+  const supabase = await createClient();
+
+  // Get building polygons for parking lots
+  const parkingLots = await getParkingLots();
+  const parkingIds = parkingLots.map((lot) => lot.id);
+
+  if (parkingIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("building_polygons")
+    .select("*")
+    .in("building_id", parkingIds);
+
+  if (error) {
+    console.warn("Error fetching parking polygons:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
 export async function getUserAdminStatus() {
   const supabase = await createClient();
 
@@ -115,3 +156,13 @@ export async function deleteEvent(eventId: string) {
 
   return data;
 }
+
+// Construction Zones
+export {
+  getActiveConstructionZones,
+  getAllConstructionZones,
+  getConstructionZone,
+} from "./constructionZones";
+
+// Saved Routes
+export { getSavedRoutes } from "./savedRoutes";

@@ -128,6 +128,91 @@ export type Database = {
         }
         Relationships: []
       }
+      construction_zones: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          geojson: Json
+          is_active: boolean
+          is_approved: boolean
+          start_date: string | null
+          end_date: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          geojson: Json
+          is_active?: boolean
+          is_approved?: boolean
+          start_date?: string | null
+          end_date?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          description?: string | null
+          geojson?: Json
+          is_active?: boolean
+          is_approved?: boolean
+          start_date?: string | null
+          end_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "construction_zones_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_routes: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          day_of_week: string
+          building_names: string[]
+          parking_lot_name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name?: string
+          day_of_week: string
+          building_names: string[]
+          parking_lot_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          day_of_week?: string
+          building_names?: string[]
+          parking_lot_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_routes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event: {
         Row: {
           buildingIDs: string[]
